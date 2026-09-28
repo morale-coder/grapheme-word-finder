@@ -244,6 +244,14 @@ button.danger{background:#B42318;border-color:#B42318;color:#fff}
 .shgrid{flex:1;display:grid;border-top:2px solid var(--ink);border-left:2px solid var(--ink);min-height:0}
 .shgrid .c{border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--word);color:var(--ink);cursor:pointer;user-select:none;overflow:hidden;padding:0 .15em;text-align:center;line-height:1.1;white-space:nowrap}
 .shgrid .c.off{color:var(--line)}
+.shgrid .c.hid{color:transparent;background:var(--soft);cursor:pointer}
+.shgrid .c.hid mark{background:transparent;color:transparent}
+.shgrid .c.hid .hm,.shgrid .c.hid .nstar{visibility:hidden}
+.shgrid .c.just{animation:pop .35s ease-out}
+@keyframes pop{from{color:transparent;background:var(--accent-soft)}to{}}
+@media (prefers-reduced-motion:reduce){.shgrid .c.just{animation:none}}
+.shcount{font:700 14px var(--ui);color:var(--muted);min-width:5.5em}
+.show.reveal .shgrid{cursor:pointer}
 .shgrid .c.off mark{background:transparent;color:var(--line)}
 .shgrid .c.blank{cursor:default}
 .shgrid .c .hm{color:var(--heart);font-size:.45em;vertical-align:super;margin-left:.08em}
@@ -258,6 +266,7 @@ button.danger{background:#B42318;border-color:#B42318;color:#fff}
 .w:hover{background:var(--soft)}
 .w.sel{outline:2px solid var(--accent);outline-offset:-2px}
 .rm-mode .w:not(.blank):hover{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--warn)}
+.rm-mode .pickwrap .w:hover{text-decoration:none}
 .nstar{color:var(--muted);font-weight:700;margin-left:1px}
 #printArea .nstar{color:#000}
 .shgrid .nstar{color:var(--muted)}
@@ -542,7 +551,7 @@ button.link{min-height:0}
       <div class="gsrow">
         <span class="lbl">Grid size</span>
         <input type="number" id="cols" min="1" max="12" value="4" aria-label="Columns"><span class="times" aria-hidden="true">&#215;</span><input type="number" id="rows" min="1" max="50" value="" placeholder="auto" aria-label="Rows">
-        <span class="row tight" style="margin-left:auto;order:9"><button type="button" id="printBtn">Print</button><button type="button" id="presentBtn" class="primary">Present full screen</button></span>
+        <span class="row tight" style="margin-left:auto;order:9"><button type="button" id="printBtn">Print</button><button type="button" id="revealBtn" title="Present with words hidden, then reveal them one at a time">Reveal</button><button type="button" id="presentBtn" class="primary">Present full screen</button></span>
         <div class="sizes" aria-label="Quick sizes"><button type="button" data-g="1x1" title="Show one word at a time">1 at a time</button><button type="button" data-g="3x3">3&#215;3</button><button type="button" data-g="4x4">4&#215;4</button><button type="button" data-g="5x5">5&#215;5</button><button type="button" data-g="4x6">4&#215;6</button><button type="button" data-g="2x5">2&#215;5</button></div>
       </div>
       <div class="gsrow" id="pickRow">
@@ -619,7 +628,9 @@ button.link{min-height:0}
       <span id="shTitle" class="shtitle"></span>
       <button type="button" id="shNext" aria-label="Next grid">&#8250;</button>
       <span class="shsp"></span>
-      <span class="hint shtip">Tap a word to gray it out &#183; &#8592; &#8594; to change grids</span>
+      <span class="hint shtip" id="shTip">Tap a word to gray it out &#183; &#8592; &#8594; to change grids</span>
+      <span class="seg" role="group" aria-label="How to show words"><button type="button" id="shAllBtn" class="on">Show all</button><button type="button" id="shRevBtn">Reveal one by one</button></span>
+      <span class="row tight" id="shRevOpts" hidden><span class="shcount" id="shCount"></span><label class="chk" style="align-items:center"><input type="checkbox" id="shRand" style="margin:0"> <span>Random order</span></label><button type="button" id="shReset">Start over</button></span>
       <label class="chk" style="align-items:center"><input type="checkbox" id="shHl" style="margin:0"> <span>Highlight</span></label>
       <button type="button" id="shFull">Full screen</button>
       <button type="button" id="shClose" class="primary">Close</button>
@@ -1115,7 +1126,7 @@ function draw(){
       el.innerHTML=(S.picks.length?el.innerHTML:'<p class="hint" style="padding:6px 0">Your grid is empty. Tap words below to add them in the order you want.</p>')+`<div class="pickwrap"><h3>Tap words to add them to your grid${S.picks.length?' (tap again to take one out)':''}</h3>${RES.length?'':'<p class="hint">No words match these settings. Try a different spelling, type, or filter.</p>'}<div class="words list${$('big').checked?' big':''}">${RES.slice(0,lim).map(r=>`<span class="w${pset.has(W[r][0])?' picked':''}" data-r="${r}" tabindex="0">${hlWord(r)}</span>`).join('')}</div>${RES.length>lim?`<div class="row more"><button type="button" id="pickMore">Show more words</button></div>`:''}</div>`;
       $('more').hidden=true; }
     $('hfNeedRows').hidden=!!g.per; $('hfOpts').hidden=!$('hfOn').checked||!g.per;
-    if(selWord===null) showDetail(RES[0]);
+    if(selWord===null) showDetail((picking?SRC:RES)[0]);
     return;
   }
   el.className='words list'+($('big').checked?' big':'');
@@ -1128,6 +1139,7 @@ $('allBtn').onclick=()=>{shown=Infinity; draw();};
 function showDetail(r){
   if(r===undefined){$('detail').innerHTML='<p class="hint">Tap a word to see how it maps to sounds.</p>';return;}
   const w=W[r], ids=w[1];
+  if(!ids.length){$('detail').innerHTML=`<p class="hint"><b style="font:700 20px var(--word);color:var(--ink)">${esc(w[0])}</b> &nbsp;There are no sound boxes for words you typed in yourself.</p>`;return;}
   const boxes=ids.map((id,n)=>{
     if(id<0) return `<div class="box silent"><span class="g">e</span><span class="p">(${esc(prevSplit(ids,n))})</span></div>`;
     const g=G[id]; const sil=g[1]==='';
@@ -1152,7 +1164,7 @@ function setClickMode(m){clickMode=m; S.clickMode=m; save();
   $('cmRemove').classList.toggle('on',m==='remove'); $('cmSounds').classList.toggle('on',m==='sounds');
   $('words').parentElement.classList.toggle('rm-mode',m==='remove');
   $('detail').hidden=m!=='sounds';
-  $('tapHint').textContent=m==='sounds'?'Tap a word to see its sound boxes.':'Tap a word to remove it from the list.';}
+  $('tapHint').textContent=S.mode==='custom'?(m==='sounds'?'Tap a grid word to see its sound boxes. Tap words below the grid to add them.':'Tap words below the grid to add them. Tap a grid word to take it out.'):(m==='sounds'?'Tap a word to see its sound boxes.':'Tap a word to remove it from the list.');}
 $('cmRemove').onclick=()=>setClickMode('remove');
 $('cmSounds').onclick=()=>setClickMode('sounds');
 $('undoRemove').onclick=()=>{const w=undo.pop(); if(!w) return; const l=exclList(); const i=l.lastIndexOf(w); if(i>=0) l.splice(i,1); setExcl(l); run();};
@@ -1163,7 +1175,9 @@ let pickShown=300;
 function togglePick(r){ const w=W[r][0]; const j=S.picks.findIndex(p=>p.w===w); if(j>=0) S.picks.splice(j,1); else S.picks.push(W[r][6]==='t'?{w,ids:null}:{w,ids:W[r][1]}); save(); const y=window.scrollY; run(); window.scrollTo(0,y); }
 $('words').addEventListener('click',e=>{ if(e.target.id==='pickMore'){pickShown+=600; draw(); e.stopPropagation();} },true);
 $('words').addEventListener('click',e=>{const s=e.target.closest('.w'); if(!s) return;
-  if(S.mode==='custom'){ if(s.dataset.r!==undefined) togglePick(+s.dataset.r); return; }
+  if(S.mode==='custom'){ if(s.dataset.r===undefined) return; const r0=+s.dataset.r;
+    if(clickMode==='sounds' && !s.closest('.pickwrap')){ selWord=W[r0][0]; document.querySelectorAll('.w.sel').forEach(x=>x.classList.remove('sel')); s.classList.add('sel'); showDetail(r0); return; }
+    togglePick(r0); return; }
   if(s.dataset.h!==undefined){ if(clickMode==='remove'){const w=s.dataset.h.toLowerCase(); const l=exclList(); if(!l.includes(w)){l.push(w); undo.push(w); setExcl(l);} const y=window.scrollY; run(); window.scrollTo(0,y);} return; }
   if(s.dataset.r===undefined) return; const r=+s.dataset.r;
   if(clickMode==='remove'){const w=W[r][0]; const l=exclList(); if(!l.includes(w)){l.push(w); undo.push(w); setExcl(l);}
@@ -1201,8 +1215,9 @@ function copyTables(only,btn){
 }
 $('copyGrid').onclick=()=>copyTables(null,null);
 // ---- present mode ----
-let shIdx=0, shGrids=[], idleT=null;
-function openShow(k){
+let shIdx=0, shGrids=[], idleT=null, shReveal=false, shN=0, shOrder=[];
+function openShow(k,reveal){
+  if(reveal!==undefined) shReveal=!!reveal; shN=0;
   shGrids=gridsFor(mixIn(gsrc().slice(),heartFill(gsrc().length))).filter(g=>g.length); if(!shGrids.length){ $('toast').textContent='There are no words to show yet.'; setTimeout(()=>$('toast').textContent='',2500); return; }
   shIdx=Math.max(0,Math.min(k,shGrids.length-1));
   $('shHl').checked=$('hl').checked;
@@ -1224,9 +1239,22 @@ function drawShow(){
     return `<div class="c">${hlWord(x)}${starOn()&&isNon(x)?STAR:''}</div>`;
   }).join('');
   $('hl').checked=saveHl;
-  const g=$('shGrid'); g.style.gridTemplateColumns=`repeat(${cols},minmax(0,1fr))`; g.style.gridTemplateRows=`repeat(${nr},minmax(0,1fr))`;
-  g.innerHTML=cells; fitShow();
+  const g=$('shGrid'); g.classList.toggle('x',false); g.style.gridTemplateColumns=`repeat(${cols},minmax(0,1fr))`; g.style.gridTemplateRows=`repeat(${nr},minmax(0,1fr))`;
+  g.innerHTML=cells;
+  const idxs=[...g.children].map((c,i)=>c.classList.contains('blank')?-1:i).filter(i=>i>=0);
+  if($('shRand').checked){ for(let i=idxs.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[idxs[i],idxs[j]]=[idxs[j],idxs[i]];} }
+  shOrder=idxs; applyReveal(false); fitShow();
 }
+function applyReveal(animate){
+  const g=$('shGrid'); const kids=g.children;
+  $('show').classList.toggle('reveal',shReveal);
+  $('shAllBtn').classList.toggle('on',!shReveal); $('shRevBtn').classList.toggle('on',shReveal); $('shRevOpts').hidden=!shReveal;
+  $('shTip').textContent=shReveal?'Click or press \u2192 to reveal the next word \u00b7 \u2190 to hide it again':'Tap a word to gray it out \u00b7 \u2190 \u2192 to change grids';
+  shOrder.forEach((ci,k)=>{ const c=kids[ci]; const vis=!shReveal||k<shN; c.classList.toggle('hid',!vis); c.classList.remove('just'); if(animate&&shReveal&&k===shN-1){ void c.offsetWidth; c.classList.add('just'); } });
+  $('shCount').textContent=shReveal?`${shN} of ${shOrder.length}`:'';
+}
+function revNext(){ if(shN<shOrder.length){ shN++; applyReveal(true); } else if(shIdx<shGrids.length-1){ shIdx++; shN=0; drawShow(); } }
+function revPrev(){ if(shN>0){ shN--; applyReveal(false); } else if(shIdx>0){ shIdx--; drawShow(); shN=shOrder.length; applyReveal(false); } }
 function fitShow(){
   if($('show').hidden) return;
   const g=$('shGrid'), rows=shGrids[shIdx]; const cols=rows[0].length, nr=rows.length;
@@ -1234,25 +1262,31 @@ function fitShow(){
   const cw=g.clientWidth/cols, ch=g.clientHeight/nr;
   g.style.fontSize=Math.max(14,Math.min(ch*0.55, cw/(longest*0.62+0.8)))+'px';
 }
-$('shGrid').addEventListener('click',e=>{const c=e.target.closest('.c'); if(c&&!c.classList.contains('blank')) c.classList.toggle('off');});
-$('shPrev').onclick=()=>{if(shIdx>0){shIdx--;drawShow();}};
-$('shNext').onclick=()=>{if(shIdx<shGrids.length-1){shIdx++;drawShow();}};
+$('shGrid').addEventListener('click',e=>{ if(shReveal){ revNext(); return; } const c=e.target.closest('.c'); if(c&&!c.classList.contains('blank')) c.classList.toggle('off');});
+$('shPrev').onclick=()=>{if(shIdx>0){shIdx--;shN=0;drawShow();}};
+$('shNext').onclick=()=>{if(shIdx<shGrids.length-1){shIdx++;shN=0;drawShow();}};
+$('shAllBtn').onclick=()=>{shReveal=false; applyReveal(false);};
+$('shRevBtn').onclick=()=>{shReveal=true; shN=0; applyReveal(false);};
+$('shReset').onclick=()=>{shN=0; drawShow();};
+$('shRand').onchange=()=>{shN=0; drawShow();};
 $('shClose').onclick=closeShow;
 $('shHl').onchange=drawShow;
 $('shFull').onclick=()=>{ try{ if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); else { const p=$('show').requestFullscreen&&$('show').requestFullscreen(); if(p&&p.catch) p.catch(()=>{$('shFull').textContent='Full screen not available here';}); } }catch(e){} };
 document.addEventListener('fullscreenchange',()=>{ $('shFull').textContent=document.fullscreenElement?'Exit full screen':'Full screen'; setTimeout(fitShow,60); });
 window.addEventListener('resize',fitShow);
 document.addEventListener('keydown',e=>{ if($('show').hidden) return;
-  if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){e.preventDefault();$('shNext').click();}
-  else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();$('shPrev').click();}
+  if(e.target&&e.target.tagName==='INPUT'&&e.key===' ') return;
+  if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '||(shReveal&&e.key==='Enter')){e.preventDefault(); if(shReveal) revNext(); else $('shNext').click();}
+  else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault(); if(shReveal) revPrev(); else $('shPrev').click();}
   else if(e.key==='Escape'){closeShow();}
   poke(); });
 function poke(){ $('show').classList.remove('idle'); clearTimeout(idleT); idleT=setTimeout(()=>$('show').classList.add('idle'),3000); }
 $('show').addEventListener('mousemove',poke);
-$('presentBtn').onclick=()=>openShow(0);
+$('presentBtn').onclick=()=>openShow(0,false);
+$('revealBtn').onclick=()=>openShow(0,true);
 $('pickClear').onclick=()=>{S.picks=[]; save(); run();};
 $('pickShuffle').onclick=()=>{const a=S.picks; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} save(); run();};
-function drawTap(){ if(S.mode==='custom') $('tapHint').textContent='Tap a word to add it to your grid. Tap a grid word to take it out.'; else setClickMode(clickMode); }
+function drawTap(){ setClickMode(clickMode); }
 // ---- print ----
 let prOnly=null, prLand=true;
 function openPrint(k){ prOnly=k; $('prOneN').textContent=(k==null?1:k+1); $('prOne').hidden=(k==null); $('prAll').classList.toggle('on',k==null); $('prOne').classList.toggle('on',k!=null);
@@ -1296,7 +1330,7 @@ $('printBtn').onclick=()=>openPrint(null);
 $('words').addEventListener('click',e=>{const b=e.target.closest('[data-print]'); if(!b) return; e.stopPropagation(); openPrint(+b.dataset.print);},true);
 document.addEventListener('keydown',e=>{ if(e.key==='Escape' && !$('printDlg').hidden) $('printDlg').hidden=true; });
 
-$('words').addEventListener('click',e=>{const b=e.target.closest('[data-present]'); if(!b) return; e.stopPropagation(); openShow(+b.dataset.present);},true);
+$('words').addEventListener('click',e=>{const b=e.target.closest('[data-present]'); if(!b) return; e.stopPropagation(); openShow(+b.dataset.present,false);},true);
 $('words').addEventListener('click',e=>{const b=e.target.closest('[data-copyg]'); if(!b) return; e.stopPropagation(); copyTables(+b.dataset.copyg,b);},true);
 $('copyCsv').onclick=()=>{
   const lines=['word,frequency_rank,syllables,sounds,letters,inflected_from,mapping'];
