@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Grapheme Word Finder</title>
 <meta name="author" content="Elizabeth Morales">
-<!-- Grapheme Word Finder. Copyright (c) 2026 Elizabeth Morales. All rights reserved. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
@@ -589,7 +588,7 @@ button.link{min-height:0}
     </div>
     <p class="foot">About 52,000 real English words, most common first. Sound matches are worked out automatically; to check a word, choose View &#8250; Tapping a word &#8250; Shows sounds.</p>
     <footer class="copy">
-      <span><b>&#169; 2026 Elizabeth Morales.</b> All rights reserved. Grapheme Word Finder is an original work by Elizabeth Morales; please do not copy or redistribute it without permission.</span>
+      <span><b>&#169; 2026 Elizabeth Morales.</b> Grapheme Word Finder is free for classroom use.</span>
       <span>Word data: pronunciations from the CMU Pronouncing Dictionary (Carnegie Mellon University); word frequencies from wordfreq by Robyn Speer (CC BY-SA 4.0). Heart word lists are based on UFLI Foundations (University of Florida Literacy Institute), which is not affiliated with this tool.</span>
     </footer>
   </main>
@@ -1340,7 +1339,7 @@ let prOnly=null, prLand=true;
 function openPrint(k){ prOnly=k; $('prOneN').textContent=(k==null?1:k+1); $('prOne').hidden=(k==null); $('prAll').classList.toggle('on',k==null); $('prOne').classList.toggle('on',k!=null);
   $('prLand').classList.toggle('on',prLand); $('prPort').classList.toggle('on',!prLand);
   const inFrame=(()=>{try{return window.self!==window.top;}catch(e){return true;}})();
-  $('prNote').hidden=!inFrame; $('prNote').textContent='Printing may be blocked inside the Claude app. If nothing happens, open your downloaded copy of Grapheme Word Finder in Chrome or Edge and print from there, or use Copy \u203a Table and print from Word or Google Docs.';
+  $('prNote').hidden=!inFrame; $('prNote').textContent='If nothing happens, open Grapheme Word Finder in its own browser tab and print from there, or use Copy \u203a Table and print from Word or Google Docs.';
   prInfo(); $('printDlg').hidden=false; }
 function prGrids(){ let gs=gridsFor(mixIn(gsrc().slice(),heartFill(gsrc().length))).filter(g=>g.length); if(prOnly!=null) gs=[gs[prOnly]].filter(Boolean); return gs; }
 function pageDims(){ const head=$('prHead').value.trim()?0.55:0; return {w:prLand?10:7.5, h:(prLand?7.5:10)-head-0.45}; }
@@ -1528,18 +1527,7 @@ async function archDel(id){
 async function archInit(){
   ARCH.list=localList(); drawArch();
   try{
-    if(!(window.claude&&window.claude.use)) return;
-    const [db,user]=await Promise.all([window.claude.use('db'),window.claude.use('user')]);
-    const uid=user?await user.id():null; if(!db||!uid) return;
-    const col=db.doc('data/users/'+uid+'/archive').collection('grids');
-    await col.get();
-    ARCH.col=col; ARCH.mode='cloud';
-    const pending=localList();
-    for(const it of pending){ try{ await col.doc(it.id).set(it); }catch(e){} }
-    if(pending.length) localWrite([]);
-    col.onSnapshot(qs=>{ ARCH.list=qs.docs.map(d=>d.data()).filter(Boolean).sort((a,b)=>(b.updated||0)-(a.updated||0)); drawArch(); },
-      ()=>{ ARCH.mode='local'; ARCH.col=null; ARCH.list=localList(); drawArch(); });
-    drawArch();
+    return; // web version: saved grids stay in this browser
   }catch(e){ ARCH.mode='local'; ARCH.col=null; }
 }
 const MODE_LBL={words:'Real words',nonsense:'Nonsense words',custom:'Custom grid'};
@@ -1569,7 +1557,7 @@ function fmtDate(t){ try{ return new Date(t).toLocaleDateString(undefined,{month
 function drawArch(){
   const n=ARCH.list.length;
   $('archBtn').textContent=n?`Saved grids (${n})`:'Saved grids';
-  $('arWhere').textContent=ARCH.mode==='cloud'?'Saved to your Claude account, so they\u2019re here whenever you open this page, on any device.':'Saved in this browser only. Use \u201cBack up\u201d to move them to another computer or copy of the finder.';
+  $('arWhere').textContent=ARCH.mode==='cloud'?'Saved in this browser.':'Saved in this browser only. Use \u201cBack up\u201d to move them to another computer or copy of the finder.';
   const q=($('arSearch').value||'').trim().toLowerCase();
   const items=ARCH.list.filter(x=>!q||(x.name+' '+(x.summary||'')+' '+(x.preview||[]).join(' ')).toLowerCase().includes(q));
   $('arSearch').parentElement.hidden=n<6;
