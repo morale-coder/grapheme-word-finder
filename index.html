@@ -256,6 +256,11 @@ button.danger{background:#B42318;border-color:#B42318;color:#fff}
 .shgrid .c.blank{cursor:default}
 .shgrid .c .hm{color:var(--heart);font-size:.45em;vertical-align:super;margin-left:.08em}
 @media (max-width:700px){.shtip{display:none}}
+.words.grid .w.drag{cursor:grab;touch-action:manipulation;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.words.grid .w.dragging{opacity:.35}
+.words.grid .w.droptarget{outline:3px dashed var(--accent);outline-offset:-4px;background:var(--accent-soft)}
+.dragghost{position:fixed;z-index:200;pointer-events:none;font-family:var(--word);font-size:26px;background:var(--panel);border:2px solid var(--accent);border-radius:10px;padding:6px 16px;box-shadow:0 12px 28px -10px rgba(20,30,60,.45);transform:translate(-50%,-60%);color:var(--ink)}
+body.dragging-now{user-select:none;cursor:grabbing}
 .gcopy{font-size:13px;padding:3px 10px;border-radius:999px}
 .gcopy.done-ok{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .gridwrap h3{margin:0;font:700 11.5px var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -554,6 +559,7 @@ button.link{min-height:0}
         <span class="row tight" style="margin-left:auto;order:9"><button type="button" id="printBtn">Print</button><button type="button" id="revealBtn" title="Present with words hidden, then reveal them one at a time">Reveal</button><button type="button" id="presentBtn" class="primary">Present full screen</button></span>
         <div class="sizes" aria-label="Quick sizes"><button type="button" data-g="1x1" title="Show one word at a time">1 at a time</button><button type="button" data-g="3x3">3&#215;3</button><button type="button" data-g="4x4">4&#215;4</button><button type="button" data-g="5x5">5&#215;5</button><button type="button" data-g="4x6">4&#215;6</button><button type="button" data-g="2x5">2&#215;5</button></div>
       </div>
+      <div class="gsrow" id="dragRow"><span class="hint">Drag a word onto another word to swap them (on a tablet, press and hold first).</span><button type="button" class="link" id="arrReset" hidden>Undo my rearranging</button></div>
       <div class="gsrow" id="pickRow">
         <span class="row tight" id="pickBar" hidden><span class="lbl">Your grid:</span><span id="pickTxt" class="hint"></span><button type="button" id="pickShuffle">Mix up order</button><button type="button" class="link" id="pickClear">Clear grid</button></span>
       </div>
@@ -857,10 +863,15 @@ function run(){
   if(sort==='az') out.sort((a,b)=>W[a][0].localeCompare(W[b][0]));
   else if(sort==='len') out.sort((a,b)=>W[a][0].length-W[b][0].length||a-b);
   else if(sort==='rand'){let s=shuffleSeed*1e9|0; const rnd=()=>((s=(s*1103515245+12345)&0x7fffffff)/0x7fffffff); for(let i=out.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[out[i],out[j]]=[out[j],out[i]];}}
+  if(mode!=='custom' && S.arr && S.arr.sig===arrSig()){ const pos=new Map(S.arr.words.map((w,i)=>[w,i])); const big=1e9;
+    out=out.map((r,i)=>[r,pos.has(W[r][0])?pos.get(W[r][0]):big+i]).sort((a,b)=>a[1]-b[1]).map(x=>x[0]); }
   $('nwInfo').textContent=src==='nonsense'?($('nwType').value==='two'?'Lots more possible.':nwAvail?`${Math.min(nwAvail,+$('nwCount').value)} of ${nwAvail.toLocaleString()} possible`:''):'';
   RES=out; draw(); drawStatus();
 }
 let RES=[], hiddenInfl=0, PICKR=[];
+function arrSig(){ const d={}; ['sylMin','sylMax','phMin','phMax','lenMin','lenMax','topN','noSilent','sort','patMode'].forEach(k=>{const el=$(k); d[k]=el?(el.type==='checkbox'?el.checked:el.value):null;});
+  let ns=null; try{ ns=nwSeed; }catch(e){}
+  return JSON.stringify([S.mode,S.pickSrc,S.targets,S.patterns,S.patMatch,S.match,S.infl,S.decOnly,S.taught,S.decTargets,S.heart,S.mo,d,ns,shuffleSeed]); }
 const WIDX=new Map(); D.words.forEach((w,i)=>{ if(!WIDX.has(w[0])) WIDX.set(w[0],i); });
 if(!S.picks) S.picks=[];
 function gsrc(){ return S.mode==='custom'?PICKR:RES; }
@@ -1116,6 +1127,9 @@ function draw(){
     const total=g.per?(g.fill==='one'?1:Math.ceil(n/g.per)):1;
     el.className='gridwrap'+($('hfMark').checked?' marked':'');
     el.innerHTML=cellStyle+grids.map((rows,k)=>`${total>1?`<div><div class="ghead"><h3>Grid ${k+1} of ${total}</h3><span class="gbtns"><button type="button" class="gcopy" data-print="${k}">Print</button><button type="button" class="gcopy" data-present="${k}">Present</button><button type="button" class="gcopy" data-copyg="${k}">Copy this grid</button></span></div>`:'<div>'}<div class="${cls}" style="grid-template-columns:repeat(${g.cols},minmax(0,1fr))">${rows.flat().map(cellHTML).join('')}</div></div>`).join('');
+    { let pos=0; el.querySelectorAll('.words.grid .w').forEach(c=>{ c.dataset.pos=pos++; if(c.dataset.r!==undefined) c.classList.add('drag'); }); }
+    DRAGLIST=mixIn(SRC.slice(0,cap),fillers);
+    $('arrReset').hidden=picking||!(S.arr&&S.arr.sig===arrSig());
     $('gridInfo').textContent=g.per
       ? `${g.cols} columns \u00d7 ${g.rows} rows = ${g.per} words per grid. `+(g.fill==='one'?`Showing the first ${Math.min(g.per,n)} of ${n.toLocaleString()} words.`:`${n.toLocaleString()} words make ${Math.max(total,1)} grid${total>1?'s':''}${n%g.per||!n?(allFill.length?`; ${allFill.length} empty cell${allFill.length>1?'s':''} ${fillers.length?'':'in the last grid will be '}filled with heart words`:`; the last one has ${g.per-(n%g.per)} blank cell${g.per-(n%g.per)>1?'s':''}`):''}.`)+(allFill.length&&heartShort?` Only ${fillers.length} unused heart words were available, so some cells stay blank.`:'')
       : `${g.cols} columns, with as many rows as the words need. Set Rows to get fixed-size grids, like a 5\u00d75 word card.`;
@@ -1174,6 +1188,40 @@ $('exclude').addEventListener('input',()=>{S.exclude=$('exclude').value; save();
 let pickShown=300;
 function togglePick(r){ const w=W[r][0]; const j=S.picks.findIndex(p=>p.w===w); if(j>=0) S.picks.splice(j,1); else S.picks.push(W[r][6]==='t'?{w,ids:null}:{w,ids:W[r][1]}); save(); const y=window.scrollY; run(); window.scrollTo(0,y); }
 $('words').addEventListener('click',e=>{ if(e.target.id==='pickMore'){pickShown+=600; draw(); e.stopPropagation();} },true);
+// ---- drag to rearrange grid words ----
+let DRAGLIST=[], drag=null, suppressClick=false;
+function cellAt(x,y){ const el=document.elementFromPoint(x,y); return el&&el.closest?el.closest('#words .words.grid .w'):null; }
+function endDrag(commit,x,y){
+  if(!drag) return; const d=drag; drag=null; clearTimeout(d.timer);
+  document.body.classList.remove('dragging-now'); if(d.ghost) d.ghost.remove();
+  document.querySelectorAll('.w.dragging,.w.droptarget').forEach(c=>c.classList.remove('dragging','droptarget'));
+  if(!d.active||!commit) return;
+  suppressClick=true; setTimeout(()=>suppressClick=false,0);
+  const tgt=cellAt(x,y); if(!tgt||tgt===d.src||tgt.dataset.r===undefined) return;
+  const a=+d.src.dataset.pos, b=+tgt.dataset.pos; const L=DRAGLIST.slice(); [L[a],L[b]]=[L[b],L[a]];
+  const shownReal=L.filter(v=>typeof v==='number');
+  if(S.mode==='custom'){ const rest=PICKR.slice(shownReal.length); const order=shownReal.concat(rest).map(r=>W[r][0]); const byW=new Map(S.picks.map(p=>[p.w,p])); S.picks=order.map(w=>byW.get(w)).filter(Boolean); }
+  else { const rest=RES.slice(shownReal.length); S.arr={sig:arrSig(),words:shownReal.concat(rest).map(r=>W[r][0])}; }
+  save(); const sy=window.scrollY; run(); window.scrollTo(0,sy);
+}
+function startActive(d,x,y){ d.active=true; d.src.classList.add('dragging'); document.body.classList.add('dragging-now');
+  const g=document.createElement('div'); g.className='dragghost'; g.textContent=d.src.textContent; document.body.appendChild(g); d.ghost=g; moveGhost(d,x,y); }
+function moveGhost(d,x,y){ d.ghost.style.left=x+'px'; d.ghost.style.top=y+'px';
+  document.querySelectorAll('.w.droptarget').forEach(c=>c.classList.remove('droptarget'));
+  const t=cellAt(x,y); if(t&&t!==d.src&&t.dataset.r!==undefined) t.classList.add('droptarget'); }
+$('words').addEventListener('pointerdown',e=>{
+  if(view!=='grid'||e.button>0) return; const c=e.target.closest('.words.grid .w.drag'); if(!c) return;
+  drag={src:c,x0:e.clientX,y0:e.clientY,active:false,touch:e.pointerType!=='mouse',timer:null};
+  if(drag.touch){ const d=drag; d.timer=setTimeout(()=>{ if(drag===d) startActive(d,d.x0,d.y0); },350); }
+});
+document.addEventListener('pointermove',e=>{ if(!drag) return; const dx=e.clientX-drag.x0, dy=e.clientY-drag.y0, far=Math.hypot(dx,dy)>7;
+  if(!drag.active){ if(drag.touch){ if(far){ clearTimeout(drag.timer); drag=null; } return; } if(far) startActive(drag,e.clientX,e.clientY); else return; }
+  moveGhost(drag,e.clientX,e.clientY); });
+document.addEventListener('pointerup',e=>endDrag(true,e.clientX,e.clientY));
+document.addEventListener('pointercancel',()=>endDrag(false));
+document.addEventListener('touchmove',e=>{ if(drag&&drag.active) e.preventDefault(); },{passive:false});
+$('words').addEventListener('click',e=>{ if(suppressClick){ e.stopPropagation(); e.preventDefault(); } },true);
+$('arrReset').onclick=()=>{ S.arr=null; save(); run(); };
 $('words').addEventListener('click',e=>{const s=e.target.closest('.w'); if(!s) return;
   if(S.mode==='custom'){ if(s.dataset.r===undefined) return; const r0=+s.dataset.r;
     if(clickMode==='sounds' && !s.closest('.pickwrap')){ selWord=W[r0][0]; document.querySelectorAll('.w.sel').forEach(x=>x.classList.remove('sel')); s.classList.add('sel'); showDetail(r0); return; }
